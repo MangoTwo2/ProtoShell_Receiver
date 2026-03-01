@@ -8,17 +8,80 @@
     body {
       margin: 0;
       padding: 0;
-      background: #111;
+      background: #0a0e14;
       overflow: hidden;
     }
 
     cast-media-player {
-      --background-color: #111111;
+      --background-color: #0a0e14;
       --background-image: none;
       --font-family: 'Segoe UI', 'Roboto', sans-serif;
       --theme-hue: 210;
       --progress-color: #4fc3f7;
-      --splash-color: #111;
+      --splash-color: #0a0e14;
+    }
+
+    /* Branded idle screen — visible when no media is loaded */
+    #splash {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(ellipse at 50% 40%, #131a24 0%, #0a0e14 70%);
+      opacity: 1;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+
+    #splash.hidden {
+      opacity: 0;
+    }
+
+    #splash .logo {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 64px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #e0e0e0;
+    }
+
+    #splash .logo .accent {
+      color: #4fc3f7;
+    }
+
+    #splash .prompt {
+      margin-top: 16px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 18px;
+      color: #555;
+    }
+
+    #splash .prompt .cursor {
+      display: inline-block;
+      width: 10px;
+      height: 20px;
+      background: #4fc3f7;
+      margin-left: 4px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      50% { opacity: 0; }
+    }
+
+    /* Subtle grid pattern overlay */
+    #splash::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(79, 195, 247, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(79, 195, 247, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
     }
 
     #title-overlay {
@@ -51,6 +114,12 @@
 </head>
 <body>
   <cast-media-player></cast-media-player>
+
+  <div id="splash">
+    <div class="logo"><span class="accent">&gt;</span> Proto<span class="accent">Shell</span></div>
+    <div class="prompt">ready to cast<span class="cursor"></span></div>
+  </div>
+
   <div id="title-overlay">
     <div id="title-text"></div>
     <div class="subtitle" id="title-subtitle"></div>
@@ -133,6 +202,9 @@
           log('LOAD', 'HLS fMP4 segment format ensured');
         }
 
+        // Hide splash screen when media starts loading
+        document.getElementById('splash').classList.add('hidden');
+
         // Update title overlay
         var title = loadRequestData.media &&
                     loadRequestData.media.metadata &&
@@ -209,6 +281,8 @@
         } else if (state === 'IDLE') {
           overlay.classList.remove('visible');
           clearTimeout(hideTimer);
+          // Show splash screen again when idle
+          document.getElementById('splash').classList.remove('hidden');
         }
       }
     );
