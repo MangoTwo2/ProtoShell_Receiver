@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProtoShell Cast Receiver</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #111;
+      overflow: hidden;
+    }
+
+    cast-media-player {
+      --background-color: #111111;
+      --background-image: none;
+      --font-family: 'Segoe UI', 'Roboto', sans-serif;
+      --theme-hue: 210;
+      --progress-color: #4fc3f7;
+      --splash-color: #111;
+    }
+
+    #title-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 24px 32px;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+      color: #fff;
+      font-family: 'Segoe UI', 'Roboto', sans-serif;
+      font-size: 28px;
+      font-weight: 300;
+      z-index: 100;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+      pointer-events: none;
+    }
+
+    #title-overlay.visible {
+      opacity: 1;
+    }
+
+    #title-overlay .subtitle {
+      font-size: 16px;
+      color: #aaa;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <cast-media-player></cast-media-player>
+  <div id="title-overlay">
+    <div id="title-text"></div>
+    <div class="subtitle" id="title-subtitle"></div>
+  </div>
+
+  <script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+  <script>
+    'use strict';
+
+    const context = cast.framework.CastReceiverContext.getInstance();
+    const playerManager = context.getPlayerManager();
+    const CUSTOM_NS = 'urn:x-cast:com.protoshell.cast';
+
+    // ── Log ring buffer ──
+
+    const MAX_LOG = 100;
+    const logBuffer = [];
+
+    function log(tag, message) {
+      const entry = { ts: Date.now(), tag, message };
+      logBuffer.push(entry);
+      if (logBuffer.length > MAX_LOG) logBuffer.shift();
+      console.log('[ProtoShell:' + tag + ']', message);
+    }
+
+    function getRecentLogs() {
+      return logBuffer.slice(-50);
+    }
+
+    // ── Send to sender(s) on custom namespace ──
+
+    function sendToSender(data, senderId) {
+      try {
+        context.sendCustomMessage(CUSTOM_NS, senderId, data);
+      } catch (e) {
+        console.error('sendCustomMessage failed:', e);
+      }
+    }
+
+    // ── LOAD interceptor ──
+
+    playerManager.setMessageInterceptor(
+      cast.framework.messages.MessageType.LOAD,
+      function(loadRequestData) {
+        log('LOAD', JSON.stringify({
+          contentId: loadRequestData.media && loadRequestData.media.contentId,
+          contentType: loadRequestData.media && loadRequestData.media.contentType,
+          streamType: loadRequestData.media && loadRequestData.media.streamType,
+        }));
+
+        sendToSender({
+          type: 'LOG',
+          message: 'LOAD received',
+          data: {
+            contentId: loadRequestData.media && loadRequestData.media.contentId,
+            contentType: loadRequestData.media && loadRequestData.media.contentType,
+            streamType: loadRequestData.media && loadRequestData.media.streamType,
+          }
+        });
+
+        // Force playback from the start for BUFFERED streams.
+        // ProtoShell uses -hls_playlist_type event which produces a growing playlist.
+        // Without this, the player may jump to the live edge.
+        if (loadRequestData.media &&
+            loadRequestData.media.streamType === cast.framework.messages.StreamType.BUFFERED) {
+          loadRequestData.currentTime = 0;
+          log('LOAD', 'Forced currentTime=0 for BUFFERED stream');
+        }
+
+        // Ensure HLS fMP4 segment format hints are present
+        if (loadRequestData.media &&
+            (loadRequestData.media.contentType === 'application/x-mpegURL' ||
+             loadRequestData.media.contentType === 'application/vnd.apple.mpegurl')) {
+          loadRequestData.media.hlsSegmentFormat =
+            loadRequestData.media.hlsSegmentFormat ||
+            cast.framework.messages.HlsSegmentFormat.FMP4;
+          loadRequestData.media.hlsVideoSegmentFormat =
+            loadRequestData.media.hlsVideoSegmentFormat ||
+            cast.framework.messages.HlsVideoSegmentFormat.FMP4;
+          log('LOAD', 'HLS fMP4 segment format ensured');
+        }
+
+        // Update title overlay
+        var title = loadRequestData.media &&
+                    loadRequestData.media.metadata &&
+                    loadRequestData.media.metadata.title;
+        if (title) {
+          document.getElementById('title-text').textContent = title;
+          document.getElementById('title-subtitle').textContent = 'Loading...';
+          document.getElementById('title-overlay').classList.add('visible');
+        }
+
+        return loadRequestData;
+      }
+    );
+
+    // ── ERROR interceptor ──
+
+    playerManager.setMessageInterceptor(
+      cast.framework.messages.MessageType.ERROR,
+      function(errorData) {
+        log('ERROR', JSON.stringify(errorData));
+        sendToSender({
+          type: 'ERROR',
+          detailedErrorCode: errorData.detailedErrorCode,
+          reason: errorData.reason,
+          message: 'Player error: ' + errorData.reason + ' (code: ' + errorData.detailedErrorCode + ')'
+        });
+        return errorData;
+      }
+    );
+
+    // ── Error event listener (catches Shaka/media errors) ──
+
+    playerManager.addEventListener(
+      cast.framework.events.EventType.ERROR,
+      function(event) {
+        log('EVENT_ERROR', JSON.stringify({
+          detailedErrorCode: event.detailedErrorCode,
+          error: event.error
+        }));
+        sendToSender({
+          type: 'ERROR',
+          message: 'Event error: ' + event.detailedErrorCode,
+          detailedErrorCode: event.detailedErrorCode,
+        });
+      }
+    );
+
+    // ── Media status listener (title overlay) ──
+
+    var hideTimer = null;
+
+    playerManager.addEventListener(
+      cast.framework.events.EventType.MEDIA_STATUS,
+      function(event) {
+        var state = event.mediaStatus && event.mediaStatus.playerState;
+
+        var overlay = document.getElementById('title-overlay');
+
+        if (state === 'PLAYING') {
+          overlay.classList.add('visible');
+          document.getElementById('title-subtitle').textContent = '';
+          clearTimeout(hideTimer);
+          hideTimer = setTimeout(function() {
+            overlay.classList.remove('visible');
+          }, 3000);
+        } else if (state === 'BUFFERING') {
+          overlay.classList.add('visible');
+          document.getElementById('title-subtitle').textContent = 'Buffering...';
+          clearTimeout(hideTimer);
+        } else if (state === 'PAUSED') {
+          overlay.classList.add('visible');
+          document.getElementById('title-subtitle').textContent = 'Paused';
+          clearTimeout(hideTimer);
+        } else if (state === 'IDLE') {
+          overlay.classList.remove('visible');
+          clearTimeout(hideTimer);
+        }
+      }
+    );
+
+    // ── Load complete listener ──
+
+    playerManager.addEventListener(
+      cast.framework.events.EventType.PLAYER_LOAD_COMPLETE,
+      function() {
+        log('LOAD_COMPLETE', 'Player loaded successfully');
+        sendToSender({ type: 'STATUS', state: 'LOAD_COMPLETE' });
+      }
+    );
+
+    // ── Custom namespace message handler ──
+
+    context.addCustomMessageListener(CUSTOM_NS, function(event) {
+      log('CUSTOM_MSG', JSON.stringify(event.data));
+      var msg = event.data;
+
+      switch (msg.type) {
+        case 'PING':
+          sendToSender({ type: 'PONG', timestamp: Date.now() }, event.senderId);
+          break;
+
+        case 'GET_LOG':
+          sendToSender({ type: 'LOG_DUMP', entries: getRecentLogs() }, event.senderId);
+          break;
+
+        case 'GET_PLAYER_STATE':
+          var mediaInfo = playerManager.getMediaInformation();
+          sendToSender({
+            type: 'PLAYER_STATE',
+            playerState: playerManager.getPlayerState(),
+            currentTime: playerManager.getCurrentTimeSec(),
+            duration: mediaInfo && mediaInfo.duration,
+            contentId: mediaInfo && mediaInfo.contentId,
+          }, event.senderId);
+          break;
+
+        default:
+          log('CUSTOM_MSG', 'Unknown message type: ' + msg.type);
+      }
+    });
+
+    // ── Playback config ──
+
+    var playbackConfig = new cast.framework.PlaybackConfig();
+    playbackConfig.autoResumeNumberOfSegments = 1;
+
+    // ── Start the receiver ──
+
+    context.start({
+      playbackConfig: playbackConfig,
+      customNamespaces: {
+        'urn:x-cast:com.protoshell.cast': cast.framework.system.MessageType.JSON
+      },
+      disableIdleTimeout: false,
+      maxInactivity: 300,
+      statusText: 'ProtoShell',
+    });
+
+    log('INIT', 'ProtoShell Cast Receiver started');
+  </script>
+</body>
+</html>
