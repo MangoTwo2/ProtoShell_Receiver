@@ -126,7 +126,7 @@
   <div id="splash">
     <div class="logo"><span class="accent">&gt;</span> Proto<span class="accent">Shell</span></div>
     <div class="prompt">ready to cast<span class="cursor"></span></div>
-    <div class="version">v1.1.0 — 2026-03-08</div>
+    <div class="version">v1.2.0 — 2026-03-08</div>
   </div>
 
   <div id="title-overlay">
@@ -138,24 +138,12 @@
   <script>
     'use strict';
 
-    const RECEIVER_VERSION = '1.1.0';
-    const RECEIVER_BUILD_DATE = '2026-03-08T21:45:00Z';
+    const RECEIVER_VERSION = '1.2.0';
+    const RECEIVER_BUILD_DATE = '2026-03-08T23:00:00Z';
 
     const context = cast.framework.CastReceiverContext.getInstance();
     const playerManager = context.getPlayerManager();
     const CUSTOM_NS = 'urn:x-cast:com.protoshell.cast';
-
-    // ── Default subtitle styling for TV legibility ──
-
-    var textTracksManager = playerManager.getTextTracksManager();
-    var trackStyle = new cast.framework.messages.TextTrackStyle();
-    trackStyle.backgroundColor = '#00000080';
-    trackStyle.foregroundColor = '#FFFFFFFF';
-    trackStyle.fontScale = 1.2;
-    trackStyle.fontFamily = 'Segoe UI, Roboto, sans-serif';
-    trackStyle.edgeType = cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
-    trackStyle.edgeColor = '#000000FF';
-    textTracksManager.setTextTrackStyle(trackStyle);
 
     // ── Log ring buffer ──
 
@@ -318,6 +306,22 @@
       function() {
         log('LOAD_COMPLETE', 'Player loaded successfully');
         sendToSender({ type: 'STATUS', state: 'LOAD_COMPLETE' });
+
+        // Apply subtitle styling now that tracks are available
+        try {
+          var ttm = playerManager.getTextTracksManager();
+          var trackStyle = new cast.framework.messages.TextTrackStyle();
+          trackStyle.backgroundColor = '#00000080';
+          trackStyle.foregroundColor = '#FFFFFFFF';
+          trackStyle.fontScale = 1.2;
+          trackStyle.fontFamily = 'Segoe UI, Roboto, sans-serif';
+          trackStyle.edgeType = cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
+          trackStyle.edgeColor = '#000000FF';
+          ttm.setTextTrackStyle(trackStyle);
+          log('LOAD_COMPLETE', 'Subtitle style applied');
+        } catch (e) {
+          log('LOAD_COMPLETE', 'Subtitle style error: ' + e.message);
+        }
       }
     );
 
