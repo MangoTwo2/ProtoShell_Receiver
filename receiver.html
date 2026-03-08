@@ -126,7 +126,7 @@
   <div id="splash">
     <div class="logo"><span class="accent">&gt;</span> Proto<span class="accent">Shell</span></div>
     <div class="prompt">ready to cast<span class="cursor"></span></div>
-    <div class="version">v1.2.0 — 2026-03-08</div>
+    <div class="version">v1.2.1 — 2026-03-08</div>
   </div>
 
   <div id="title-overlay">
@@ -138,7 +138,7 @@
   <script>
     'use strict';
 
-    const RECEIVER_VERSION = '1.2.0';
+    const RECEIVER_VERSION = '1.2.1';
     const RECEIVER_BUILD_DATE = '2026-03-08T23:00:00Z';
 
     const context = cast.framework.CastReceiverContext.getInstance();
@@ -228,22 +228,6 @@
         }
 
         return loadRequestData;
-      }
-    );
-
-    // ── ERROR interceptor ──
-
-    playerManager.setMessageInterceptor(
-      cast.framework.messages.MessageType.ERROR,
-      function(errorData) {
-        log('ERROR', JSON.stringify(errorData));
-        sendToSender({
-          type: 'ERROR',
-          detailedErrorCode: errorData.detailedErrorCode,
-          reason: errorData.reason,
-          message: 'Player error: ' + errorData.reason + ' (code: ' + errorData.detailedErrorCode + ')'
-        });
-        return errorData;
       }
     );
 
