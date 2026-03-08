@@ -126,7 +126,7 @@
   <div id="splash">
     <div class="logo"><span class="accent">&gt;</span> Proto<span class="accent">Shell</span></div>
     <div class="prompt">ready to cast<span class="cursor"></span></div>
-    <div class="version">v1.2.1 — 2026-03-08</div>
+    <div class="version">v1.2.2 — 2026-03-08</div>
   </div>
 
   <div id="title-overlay">
@@ -138,7 +138,7 @@
   <script>
     'use strict';
 
-    const RECEIVER_VERSION = '1.2.1';
+    const RECEIVER_VERSION = '1.2.2';
     const RECEIVER_BUILD_DATE = '2026-03-08T23:00:00Z';
 
     const context = cast.framework.CastReceiverContext.getInstance();
@@ -277,8 +277,12 @@
         } else if (state === 'IDLE') {
           overlay.classList.remove('visible');
           clearTimeout(hideTimer);
-          // Show splash screen again when idle
-          document.getElementById('splash').classList.remove('hidden');
+          // Show splash screen again when idle — but only if playback actually
+          // ended (has idleReason). The transient IDLE during LOAD must be ignored.
+          var idleReason = event.mediaStatus && event.mediaStatus.idleReason;
+          if (idleReason) {
+            document.getElementById('splash').classList.remove('hidden');
+          }
         }
       }
     );
