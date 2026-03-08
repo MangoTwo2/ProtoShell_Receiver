@@ -133,6 +133,18 @@
     const playerManager = context.getPlayerManager();
     const CUSTOM_NS = 'urn:x-cast:com.protoshell.cast';
 
+    // ── Default subtitle styling for TV legibility ──
+
+    var textTracksManager = playerManager.getTextTracksManager();
+    var trackStyle = new cast.framework.messages.TextTrackStyle();
+    trackStyle.backgroundColor = '#00000080';
+    trackStyle.foregroundColor = '#FFFFFFFF';
+    trackStyle.fontScale = 1.2;
+    trackStyle.fontFamily = 'Segoe UI, Roboto, sans-serif';
+    trackStyle.edgeType = cast.framework.messages.TextTrackEdgeType.DROP_SHADOW;
+    trackStyle.edgeColor = '#000000FF';
+    textTracksManager.setTextTrackStyle(trackStyle);
+
     // ── Log ring buffer ──
 
     const MAX_LOG = 100;
@@ -325,6 +337,20 @@
 
         default:
           log('CUSTOM_MSG', 'Unknown message type: ' + msg.type);
+      }
+    });
+
+    // ── Visibility change detection (Google TV app backgrounding) ──
+
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden && playerManager.getPlayerState() !== 'IDLE') {
+        var mediaInfo = playerManager.getMediaInformation();
+        log('VISIBILITY', 'App backgrounded while playing — notifying sender');
+        sendToSender({
+          type: 'APP_BACKGROUNDED',
+          currentTime: playerManager.getCurrentTimeSec(),
+          duration: mediaInfo && mediaInfo.duration
+        });
       }
     });
 
