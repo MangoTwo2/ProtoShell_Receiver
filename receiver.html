@@ -129,6 +129,9 @@
   <script>
     'use strict';
 
+    const RECEIVER_VERSION = '1.1.0';
+    const RECEIVER_BUILD_DATE = '2026-03-08T21:45:00Z';
+
     const context = cast.framework.CastReceiverContext.getInstance();
     const playerManager = context.getPlayerManager();
     const CUSTOM_NS = 'urn:x-cast:com.protoshell.cast';
@@ -317,7 +320,11 @@
 
       switch (msg.type) {
         case 'PING':
-          sendToSender({ type: 'PONG', timestamp: Date.now() }, event.senderId);
+          sendToSender({ type: 'PONG', timestamp: Date.now(), version: RECEIVER_VERSION, buildDate: RECEIVER_BUILD_DATE }, event.senderId);
+          break;
+
+        case 'GET_VERSION':
+          sendToSender({ type: 'VERSION', version: RECEIVER_VERSION, buildDate: RECEIVER_BUILD_DATE }, event.senderId);
           break;
 
         case 'GET_LOG':
@@ -371,7 +378,7 @@
       statusText: 'ProtoShell',
     });
 
-    log('INIT', 'ProtoShell Cast Receiver started');
+    log('INIT', 'ProtoShell Cast Receiver v' + RECEIVER_VERSION + ' (' + RECEIVER_BUILD_DATE + ') started');
   </script>
 </body>
 </html>
