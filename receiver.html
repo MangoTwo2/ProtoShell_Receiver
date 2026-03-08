@@ -126,7 +126,7 @@
   <div id="splash">
     <div class="logo"><span class="accent">&gt;</span> Proto<span class="accent">Shell</span></div>
     <div class="prompt">ready to cast<span class="cursor"></span></div>
-    <div class="version" id="splash-version"></div>
+    <div class="version">v1.1.0 — 2026-03-08</div>
   </div>
 
   <div id="title-overlay">
@@ -387,7 +387,6 @@
       statusText: 'ProtoShell',
     });
 
-    document.getElementById('splash-version').textContent = 'v' + RECEIVER_VERSION + ' \u2014 ' + RECEIVER_BUILD_DATE.replace('T', ' ').replace('Z', ' UTC');
     log('INIT', 'ProtoShell Cast Receiver v' + RECEIVER_VERSION + ' (' + RECEIVER_BUILD_DATE + ') started');
   </script>
 </body>
